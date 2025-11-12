@@ -1,4 +1,3 @@
-// api/sendToSlack.js
 import fetch from "node-fetch";
 
 export default async function handler(req, res) {
@@ -6,41 +5,33 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: "Only POST requests allowed" });
   }
 
+  const { summary, history, customerId, channel } = req.body;
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return res.status(400).json({ message: "Missing SLACK_WEBHOOK_URL" });
+  }
+
+  const payload = {
+    text: `📞 *New Customer Care Case*\n*Customer ID:* ${customerId || "N/A"}\n*Channel:* ${channel || "#customer-care"}\n\n*Summary:*\n${summary}\n\n*Conversation History:*\n${history}`,
+  };
+
   try {
-    const { summary, history, customerId, channel } = req.body || {};
-    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-
-    if (!webhookUrl) {
-      return res.status(500).json({ error: "Missing SLACK_WEBHOOK_URL env var" });
-    }
-
-    const payload = {
-      text: `📞 *New Customer Care Case*
-*Customer ID:* ${customerId || "N/A"}
-*Channel:* ${channel || "N/A"}
-
-*Summary:*
-${summary || "No summary provided"}
-
-*Conversation History:*
-${history || "No conversation history"}`
-    };
-
-    const slackRes = await fetch(webhookUrl, {
+    const slackResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
-    const text = await slackRes.text();
+    const text = await slackResponse.text();
 
-    if (!slackRes.ok) {
-      return res.status(slackRes.status).json({ error: text });
+    if (!slackResponse.ok) {
+      return res.status(slackResponse.status).json({ error: text });
     }
 
-    return res.status(200).json({ success: true, slackResponse: text });
-  } catch (err) {
-    console.error("sendToSlack error:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(200).json({ success: true, text });
+  } catch (error) {
+    console.error("Proxy error:", error);
+    return res.status(500).json({ error: error.message });
   }
 }

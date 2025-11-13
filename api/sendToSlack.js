@@ -1,36 +1,35 @@
-import express from "express";
-import fetch from "node-fetch";
-import bodyParser from "body-parser";
-
-const app = express();
-app.use(bodyParser.json());
-
-app.post("/send-to-slack", async (req, res) => {
-  const { summary, history, message } = req.body;
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-
-  const payload = {
-    text: `📞 *AutoCare Vehicle Recall Assistance*\n\n*Message:* ${message || ""}\n\n*Summary:* ${summary || ""}\n\n*Conversation History:* ${history || ""}`,
-  };
+// File: api/sendToSlack.js
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const { message } = await req.json();
+    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const payload = {
+      text: `🤖 *AutoCare Agent Message:*\n${message}`,
+    };
+
+    const slackRes = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ success: false, error: text });
+    if (!slackRes.ok) {
+      const text = await slackRes.text();
+      throw new Error(`Slack returned ${slackRes.status}: ${text}`);
     }
 
-    return res.json({ success: true, message: "Sent to Slack!" });
+    return res.status(200).json({ success: true, message: "Sent to Slack!" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("Slack error:", err);
+    return res.status(500).json({ error: err.message });
   }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Slack microservice running on port ${PORT}`));
+}

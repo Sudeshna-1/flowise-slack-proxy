@@ -1,37 +1,36 @@
+import express from "express";
 import fetch from "node-fetch";
+import bodyParser from "body-parser";
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Only POST requests allowed" });
-  }
+const app = express();
+app.use(bodyParser.json());
 
-  const { summary, history, customerId, channel } = req.body;
+app.post("/send-to-slack", async (req, res) => {
+  const { summary, history, message } = req.body;
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 
-  if (!webhookUrl) {
-    return res.status(400).json({ message: "Missing SLACK_WEBHOOK_URL" });
-  }
-
   const payload = {
-    text: `📞 *New Customer Care Case*\n*Customer ID:* ${customerId || "N/A"}\n*Channel:* ${channel || "#customer-care"}\n\n*Summary:*\n${summary}\n\n*Conversation History:*\n${history}`,
+    text: `📞 *AutoCare Vehicle Recall Assistance*\n\n*Message:* ${message || ""}\n\n*Summary:* ${summary || ""}\n\n*Conversation History:* ${history || ""}`,
   };
 
   try {
-    const slackResponse = await fetch(webhookUrl, {
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    const text = await slackResponse.text();
-
-    if (!slackResponse.ok) {
-      return res.status(slackResponse.status).json({ error: text });
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ success: false, error: text });
     }
 
-    return res.status(200).json({ success: true, text });
-  } catch (error) {
-    console.error("Proxy error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.json({ success: true, message: "Sent to Slack!" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
-}
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Slack microservice running on port ${PORT}`));
